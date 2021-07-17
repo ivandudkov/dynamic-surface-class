@@ -1,4 +1,4 @@
-# Other
+# Ignore DTM and MATLAB surfaces data
 *.xyz
 *.mat
 
