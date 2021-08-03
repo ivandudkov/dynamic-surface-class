@@ -1,5 +1,5 @@
 # Ignore DTM and MATLAB surfaces data
-*.xyz
+SH2017_MainSurveyLines_1m_CUBE_NOAA.xyz
 *.mat
 
 # Byte-compiled / optimized / DLL files
