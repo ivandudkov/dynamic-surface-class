@@ -12,8 +12,8 @@ xyz_paths = find_file_with_extension('.xyz', path=os.path.abspath('..'))
 xyz_array = read_xyz_file_r2(xyz_paths[2], separator=',', header_length=1)
 
 b = RegGrid3D(0.5, 1)
-b.Create(xyz_array[0, 0:1000], xyz_array[1, 0:1000], xyz_array[2, 0:1000])
-b.FilterSD(5)
+b.create(xyz_array[0, 0:1000], xyz_array[1, 0:1000], xyz_array[2, 0:1000])
+b.filter_sd(5)
 print("Kekekke")
 
-b.Plot()
+b.plot()
