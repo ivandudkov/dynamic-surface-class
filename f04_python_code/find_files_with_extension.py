@@ -2,13 +2,13 @@
 # and returns a list of full paths for these files
 import os
 
+
 def find_file_with_extension(extension, path=os.getcwd()):
-        # Check the top path existence
+    # Check the top path existence
     if os.path.exists(path):
         print(('Searching *%s files in directory:' + path + '\n') % extension)
     else:  # Raise a meaningful error
         raise RuntimeError('Path either not exists or not correct ' + path)
-
 
     paths = []
     count = 0
