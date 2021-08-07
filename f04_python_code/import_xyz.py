@@ -1,9 +1,14 @@
 import os.path
 import numpy as np
 
-
 # Define a function that read XYZ files
 # and returns a numpy array
+
+# August 2021
+# Author: Ivan Dudkov
+# Affiliations:
+# P.P Shirshov's Institute of Oceanography, Atlantic Branch, Kaliningrad, Russia. (2018 - ????)
+# Center for Coastal and Ocean Mapping, University of New Hampshire. Durham, USA. (2020-2021)
 
 # Realization 1. Probably well optimized but it crashes EPOM kernel
 def read_xyz_file_r1(xyz_filepath, start=0, end=None,
