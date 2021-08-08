@@ -133,6 +133,7 @@ class RegGrid3D:
         for i in range(np.shape(self.X)[0]):
             for j in range(np.shape(self.X)[1]):
                 self.stdGrid[i, j] = np.nanstd(self.heights[i, j, :]/self.sumWhei[i, j, :])
+
     # Add an array of observations
     def add(self, x=None, y=None, z=None, obs_weight=1):
         if z is None:
