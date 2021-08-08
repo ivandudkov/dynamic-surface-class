@@ -8,11 +8,17 @@ import numpy as np
 # Turn off scientific notation
 np.set_printoptions(suppress=True)
 
-xyz_paths = find_file_with_extension('.xyz', path=os.path.abspath('..'))
-xyz_array = read_xyz_file_r2(xyz_paths[2], separator=',', header_length=1)
+if 'xyz_array' in locals():
+    print("kek")
+    pass
+else:
+    xyz_paths = find_file_with_extension('.xyz', path=os.path.abspath('..'))
+    xyz_array = read_xyz_file_r2(xyz_paths[2], separator=',', header_length=1)
 
 b = RegGrid3D(0.5, 1)
-b.create(xyz_array[0, 0:1000], xyz_array[1, 0:1000], xyz_array[2, 0:1000])
-b.filter_sd(5)
+
+b.create(xyz_array[0, 0:10000], xyz_array[1, 0:10000], xyz_array[2, 0:10000])
+# b.filter_sd(3)
 
 b.plot()
+

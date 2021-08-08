@@ -31,7 +31,7 @@ class RegGrid3D:
     """
 
     # Class constructor method
-    def __init__(self, res, rinfl, rinc=0):
+    def __init__(self, res, rinfl, rinc=0, rangex=None, rangey=None):
         print("Initialization of the RegGrid3D class\n")
 
         # Properties
@@ -43,28 +43,59 @@ class RegGrid3D:
         self.rinc = rinc  # Set rinc
         self.rpix = round(rinfl / res)  # Radius of influence in pixel units
 
-        # Allocation memory for the ranges
-        self.rangeX = np.zeros(2)
-        self.rangeY = np.zeros(2)
+        # Check for X,Y range existence
+        # If there are X,Y range esist,
+        # let's calculate meshgrid and empty
+        # Weight and Sum Weight grids
 
-        # Other variables
-        self.X = None  # X-coord
-        self.Y = None  # Y-coord
-        self.weighGrid = None  # Weights Grid
-        self.sumWeight = None  # Grid of the sum Weights
-        self.dtmGrid = None  # Digital Terrain Model Grid
-        self.stdGrid = None  # Standard Deviation grid
+        # upd. For me - next block of the code is really weird.
+        # We have function "Create" why we need that pile of code?
+
+        # upd. I can move it somewhere else, if I want
+        if rangex is not None and rangey is not None:
+            print("Ranges was inputted. Calculating meshgrid and empty Weight and Sum Weight grids\n")
+            self.rangeX = rangex
+            self.rangeY = rangey
+
+            # Check for correctness of X,Y ranges
+            if len(rangex) != 2 or len(rangey) != 2:
+                raise RuntimeError(
+                    "Error! Vectors for Y and X range should contain only 2 elements - min and max extent")
+
+            # Meshgrid Creation
+            print("Creating the meshgrid using range vectors\n")
+
+            # My first implementation. I'm not sure that it is correct, but should be.
+            self.X, self.Y = np.meshgrid(np.double(np.linspace(self.rangeX[0], self.rangeX[1],
+                                                               np.uint64(np.rint(
+                                                                   (np.diff(self.rangeX)[0] + self.res) / self.res)))),
+                                         np.double(np.linspace(self.rangeY[0], self.rangeY[1],
+                                                               np.uint64(np.rint(
+                                                                   (np.diff(self.rangeY)[0] + self.res) / self.res)))))
+
+            print("""Meshgrid with X and Y dimensions was created: 
+            X size is %d, Y size is %d.\n""" % (np.size(self.X), np.size(self.Y)))
+
+            # Make sure that the stored ranges are an exact representarion
+            # of the meshgrid
+
+            if self.X[-1, -1] != self.rangeX[1] and self.Y[-1, -1] != self.rangeY[1]:
+                raise RuntimeError("Error! Meshgrid matrices and X,Y range vectors are not equal!")
+
+            # Now create the weighed grid and the associated grid of weights
+            self.weighGrid = np.zeros(np.shape(self.X))
+            self.sumWeight = np.zeros(np.shape(self.X))
+        else:
+            self.rangeX = np.zeros(2)
+            self.rangeY = np.zeros(2)
 
         # Create a distance weighting kernel that weighs by 1/R**2,
         # except for R=0, for which the weight = 1
         wx, wy = np.meshgrid(np.arange(-self.rpix, self.rpix + 1),
                              np.arange(-self.rpix, self.rpix + 1))
 
-
-        # Create a kernel weighs grid
-        np.seterr(divide='ignore')  # ignore zero-division warn
         self.kWeight = 1 / (wx ** 2 + wy ** 2)
-        np.seterr(divide='warn')  # set back to default
+
         # Deal with the weight at the center i.e., R = 0
         self.kWeight[self.rpix, self.rpix] = 1
         self.kWeight = np.where(self.kWeight < self.rpix ** -2, 0, self.kWeight)
@@ -76,6 +107,8 @@ class RegGrid3D:
         #         % Create arrays that cover the full data extent,
         #         % expanded by the radius of influence in pixel units to
         #         % ensure that the all data can be fully captured in the arrays
+        self.rangeX = np.zeros(2)
+        self.rangeY = np.zeros(2)
 
         self.rangeX[0] = np.amin(x) - self.rpix
         self.rangeX[1] = np.amax(x) + self.rpix
@@ -85,14 +118,24 @@ class RegGrid3D:
         # Create a new meshgrid covering the expanded range
         print("Creating the meshgrid using range vectors\n")
 
+        # My first implementation. I'm not sure that it is correct, but should be.
         self.X, self.Y = np.meshgrid(np.double(
             np.linspace(self.rangeX[0], self.rangeX[1],
                         np.uint64(np.rint((np.diff(self.rangeX)[0] + self.res) / self.res)))),
             np.double(np.linspace(self.rangeY[0], self.rangeY[1],
                                   np.uint64(np.rint((np.diff(self.rangeY)[0] + self.res) / self.res)))))
 
+        # My second implementation. Actually, the same as in Matlab.
+        # I'm not sure as well, but it gives the same result
+        #         self.X, self.Y = np.meshgrid(np.arange(0, (np.uint64(np.rint(np.diff(self.rangeX)[0]/self.res))) + 1)
+        #                                                 *self.res + self.rangeX[0],
+        #                                      np.arange(0, (np.uint64(np.rint(np.diff(self.rangeY)[0]/self.res))) + 1)
+        #                                                             *self.res + self.rangeY[0])
+        #         self.rangeX[1] = self.X[-1, -1]
+        #         self.rangeY[1] = self.Y[-1, -1]
+
         print("""Meshgrid with X and Y dimensions was created: 
-        X size is %s, Y size is %s.\n""" % (np.shape(self.X), np.shape(self.Y)))
+        X size is %d, Y size is %d.\n""" % (np.size(self.X), np.size(self.Y)))
 
         # Make sure that the stored ranges are an exact representation
         # of the meshgrid
@@ -104,35 +147,26 @@ class RegGrid3D:
         self.weighGrid = np.zeros(np.shape(self.X))
         self.sumWeight = np.zeros(np.shape(self.X))
 
-        self.heights = np.zeros((np.shape(self.X)[0], np.shape(self.X)[1], len(z)))
-        self.sumWhei = np.zeros((np.shape(self.X)[0], np.shape(self.X)[1], len(z)))
-        self.stdGrid = np.zeros(np.shape(self.X))
-
         # Loop through the data - for now using a for loop
         count = 0
         for i in range(len(z)):
             # Get the location of the data in the grid
+
             x_grid = np.argwhere(x[i] >= self.X[1, :])[-1][0]
             y_grid = np.argwhere(y[i] >= self.Y[:, 1])[-1][0]
 
             # Set the location of associated kernel in the grid
             k = np.array([[x_grid - self.rpix, x_grid + (self.rpix + 1)],
                           [y_grid - self.rpix, y_grid + (self.rpix + 1)]])
-
             # Add the contribution to both the weighed grid as well as
             # the grid of summed weights
             self.sumWeight[k[1, 0]:k[1, 1], k[0, 0]:k[0, 1]] = self.sumWeight[k[1, 0]:k[1, 1], k[0, 0]:k[0, 1]] + \
                                                                obs_weight * self.kWeight
             self.weighGrid[k[1, 0]:k[1, 1], k[0, 0]:k[0, 1]] = self.weighGrid[k[1, 0]:k[1, 1], k[0, 0]:k[0, 1]] + \
                                                                obs_weight * self.kWeight * z[i]
+            count += 1
+        print("%d dynamic surface's cells were updated" % (count + 1))
 
-            self.heights[k[1, 0]:k[1, 1], k[0, 0]:k[0, 1], i] = self.heights[k[1, 0]:k[1, 1], k[0, 0]:k[0, 1], i] + \
-                                                                self.kWeight * z[i]
-            self.sumWhei[k[1, 0]:k[1, 1], k[0, 0]:k[0, 1], i] = self.heights[k[1, 0]:k[1, 1], k[0, 0]:k[0, 1], i] + \
-                                                                self.kWeight
-        for i in range(np.shape(self.X)[0]):
-            for j in range(np.shape(self.X)[1]):
-                self.stdGrid[i, j] = np.nanstd(self.heights[i, j, :]/self.sumWhei[i, j, :])
     # Add an array of observations
     def add(self, x=None, y=None, z=None, obs_weight=1):
         if z is None:
@@ -331,12 +365,12 @@ class RegGrid3D:
                                   np.sin(h) ** 2 * (1 - np.sin(bh[i]) ** 2),
                                   np.sin(bh[i])]))
 
-        #                 % Note you have to careful about the signs
-        #                 % I did not check this for you
-        #                 % tan(asin(u(1,3)))*abs(cross distance) should get you
-        #                 % approximately to the depth observed
+    #                 % Note you have to careful about the signs
+    #                 % I did not check this for you
+    #                 % tan(asin(u(1,3)))*abs(cross distance) should get you
+    #                 % approximately to the depth observed
 
-        #                 % etc
+    #                 % etc
 
     def filter_sd(self, size, crit_angle=1, varargin=None):
 
@@ -364,7 +398,6 @@ class RegGrid3D:
                 r = np.arange(i - size, i + size + 1, dtype=np.int)
                 c = np.arange(j - size, j + size + 1, dtype=np.int)
                 k = dtm[r[0]:r[-1] + 1, c[0]:c[-1] + 1]
-                print(k)
 
                 #             % If there are too many nan's don't bother calculating
                 #             % This has the risk of masking all the borders so allow
@@ -494,16 +527,16 @@ class RegGrid3D:
         plot1 = axs[0].pcolormesh(self.X, self.Y, self.dtm,
                                   cmap='gist_rainbow_r', vmin=np.nanmin(self.dtm), vmax=np.nanmax(self.dtm))
 
-        axs[0].ticklabel_format(useOffset=False, style='plain')
+        axs[0].ticklabel_format(useOffset=False)
         axs[0].set_title(title1)
         axs[0].set_xlabel(x_label)
         axs[0].set_ylabel(y_label)
 
         # Standard Deviation Model 2D surface
-        plot2 = axs[1].pcolormesh(self.X, self.Y, self.stdGrid,
-                                  cmap='gist_rainbow_r', vmin=np.nanmin(self.stdGrid), vmax=np.nanmax(self.stdGrid))
+        plot2 = axs[1].pcolormesh(self.X, self.Y, self.dtm_sd,
+                                  cmap='gist_rainbow_r', vmin=np.nanmin(self.dtm_sd), vmax=np.nanmax(self.dtm_sd))
 
-        axs[1].ticklabel_format(useOffset=False, style='plain')
+        axs[1].ticklabel_format(useOffset=False)
         axs[1].set_title(title2)
         axs[1].set_xlabel(x_label)
         axs[1].set_ylabel(y_label)
