@@ -269,6 +269,19 @@ class RegGrid3D:
                 if self.X[-1, -1] != self.rangeX[1] and self.Y[-1, -1] != self.rangeY[1]:
                     raise RuntimeError("Error! Meshgrid matrices and X,Y range vectors are not equal!")
 
+                # Get a copy of the existing grid
+                wg = np.copy(self.weighGrid)
+                sw = np.copy(self.sumWeight)
+                std_wg = np.copy(self.std)
+                std_sw =
+
+
+                wg = self.weighGrid[0 + c_min_y:len(self.weighGrid[0, :]) - c_max_y + 1,
+                     0 + c_min_x:len(self.weighGrid[0, :]) - c_max_x + 1]
+
+                sw = self.sumWeight[0 + c_min_y:len(self.sumWeight[0, :]) - c_max_y + 1,
+                     0 + c_min_x:len(self.sumWeight[0, :]) - c_max_x + 1]
+
                 # Create the new weighed grid and associated sum weights
                 self.weighGrid = np.zeros(np.shape(self.X))
                 self.sumWeight = np.zeros(np.shape(self.X))

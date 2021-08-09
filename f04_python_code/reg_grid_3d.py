@@ -54,12 +54,13 @@ class RegGrid3D:
         self.sumWeight = None  # Grid of the sum Weights
         self.dtmGrid = None  # Digital Terrain Model Grid
         self.stdGrid = None  # Standard Deviation grid
+        self.std_sumWeight = None  # Grid of the sum Weights for std grid calculation
+        self.std_weighGrid = None  # Weights Grid for std grid calculation
 
         # Create a distance weighting kernel that weighs by 1/R**2,
         # except for R=0, for which the weight = 1
         wx, wy = np.meshgrid(np.arange(-self.rpix, self.rpix + 1),
                              np.arange(-self.rpix, self.rpix + 1))
-
 
         # Create a kernel weighs grid
         np.seterr(divide='ignore')  # ignore zero-division warn
@@ -67,7 +68,8 @@ class RegGrid3D:
         np.seterr(divide='warn')  # set back to default
         # Deal with the weight at the center i.e., R = 0
         self.kWeight[self.rpix, self.rpix] = 1
-        self.kWeight = np.where(self.kWeight < self.rpix ** -2, 0, self.kWeight)
+        self.kWeight = \
+            np.where(self.kWeight < self.rpix ** -2, 0, self.kWeight)
 
     def create(self, x, y, z, obs_weight=1):
         # Original description from Matlab Script
@@ -77,43 +79,47 @@ class RegGrid3D:
         #         % expanded by the radius of influence in pixel units to
         #         % ensure that the all data can be fully captured in the arrays
 
-        self.rangeX[0] = np.amin(x) - self.rpix
-        self.rangeX[1] = np.amax(x) + self.rpix
-        self.rangeY[0] = np.amin(y) - self.rpix
-        self.rangeY[1] = np.amax(y) + self.rpix
+        self.rangeX[0] = np.amin(x)
+        self.rangeX[1] = np.amax(x)
+        self.rangeY[0] = np.amin(y)
+        self.rangeY[1] = np.amax(y)
 
         # Create a new meshgrid covering the expanded range
         print("Creating the meshgrid using range vectors\n")
 
-        self.X, self.Y = np.meshgrid(np.double(
-            np.linspace(self.rangeX[0], self.rangeX[1],
-                        np.uint64(np.rint((np.diff(self.rangeX)[0] + self.res) / self.res)))),
-            np.double(np.linspace(self.rangeY[0], self.rangeY[1],
-                                  np.uint64(np.rint((np.diff(self.rangeY)[0] + self.res) / self.res)))))
+        self.X, self.Y = \
+            np.meshgrid(
+                np.arange(-self.rpix, (np.ceil(np.diff(self.rangeX)[0] / self.res)) + self.rpix + 1)
+                * self.res + self.rangeX[0],
+                np.arange(-self.rpix, (np.ceil(np.diff(self.rangeY)[0] / self.res)) + self.rpix + 1)
+                * self.res + self.rangeY[0])
+
+        # Update ranges to make sure that they are correctly represent the meshgrid
+        self.rangeX[0] = self.X[0, 0]
+        self.rangeX[1] = self.X[-1, -1]
+        self.rangeY[0] = self.Y[0, 0]
+        self.rangeY[1] = self.Y[-1, -1]
 
         print("""Meshgrid with X and Y dimensions was created: 
         X size is %s, Y size is %s.\n""" % (np.shape(self.X), np.shape(self.Y)))
 
-        # Make sure that the stored ranges are an exact representation
-        # of the meshgrid
-
-        if self.X[-1, -1] != self.rangeX[1] and self.Y[-1, -1] != self.rangeY[1]:
-            raise RuntimeError("Error! Meshgrid matrices and X,Y range vectors are not equal!")
-
         # Now create the weighed grid and the associated grid of weights
-        self.weighGrid = np.zeros(np.shape(self.X))
         self.sumWeight = np.zeros(np.shape(self.X))
+        self.weighGrid = np.zeros(np.shape(self.X))
 
-        self.heights = np.zeros((np.shape(self.X)[0], np.shape(self.X)[1], len(z)))
-        self.sumWhei = np.zeros((np.shape(self.X)[0], np.shape(self.X)[1], len(z)))
+        self.std_sumWeight = np.zeros((np.shape(self.X)[0], np.shape(self.X)[1], len(z)))
+        self.std_weighGrid = np.zeros((np.shape(self.X)[0], np.shape(self.X)[1], len(z)))
+
         self.stdGrid = np.zeros(np.shape(self.X))
 
         # Loop through the data - for now using a for loop
-        count = 0
         for i in range(len(z)):
             # Get the location of the data in the grid
-            x_grid = np.argwhere(x[i] >= self.X[1, :])[-1][0]
-            y_grid = np.argwhere(y[i] >= self.Y[:, 1])[-1][0]
+            x_grid = np.argwhere(x[i] >= self.X[0, :])[-1][0]
+            y_grid = np.argwhere(y[i] >= self.Y[:, 0])[-1][0]
+
+            test_x = np.argwhere(x[i] >= self.X[0, :])
+            test_y = np.argwhere(y[i] >= self.Y[:, 0])
 
             # Set the location of associated kernel in the grid
             k = np.array([[x_grid - self.rpix, x_grid + (self.rpix + 1)],
@@ -121,20 +127,29 @@ class RegGrid3D:
 
             # Add the contribution to both the weighed grid as well as
             # the grid of summed weights
-            self.sumWeight[k[1, 0]:k[1, 1], k[0, 0]:k[0, 1]] = self.sumWeight[k[1, 0]:k[1, 1], k[0, 0]:k[0, 1]] + \
-                                                               obs_weight * self.kWeight
-            self.weighGrid[k[1, 0]:k[1, 1], k[0, 0]:k[0, 1]] = self.weighGrid[k[1, 0]:k[1, 1], k[0, 0]:k[0, 1]] + \
-                                                               obs_weight * self.kWeight * z[i]
+            self.sumWeight[k[1, 0]:k[1, 1], k[0, 0]:k[0, 1]] = \
+                self.sumWeight[k[1, 0]:k[1, 1], k[0, 0]:k[0, 1]] + \
+                obs_weight * self.kWeight
 
-            self.heights[k[1, 0]:k[1, 1], k[0, 0]:k[0, 1], i] = self.heights[k[1, 0]:k[1, 1], k[0, 0]:k[0, 1], i] + \
-                                                                self.kWeight * z[i]
-            self.sumWhei[k[1, 0]:k[1, 1], k[0, 0]:k[0, 1], i] = self.heights[k[1, 0]:k[1, 1], k[0, 0]:k[0, 1], i] + \
-                                                                self.kWeight
+            self.weighGrid[k[1, 0]:k[1, 1], k[0, 0]:k[0, 1]] = \
+                self.weighGrid[k[1, 0]:k[1, 1], k[0, 0]:k[0, 1]] + \
+                obs_weight * self.kWeight * z[i]
+
+            self.std_sumWeight[k[1, 0]:k[1, 1], k[0, 0]:k[0, 1], i] = \
+                self.std_sumWeight[k[1, 0]:k[1, 1], k[0, 0]:k[0, 1], i] + \
+                self.kWeight
+
+            self.std_weighGrid[k[1, 0]:k[1, 1], k[0, 0]:k[0, 1], i] = \
+                self.std_weighGrid[k[1, 0]:k[1, 1], k[0, 0]:k[0, 1], i] + \
+                self.kWeight * z[i]
+
         for i in range(np.shape(self.X)[0]):
             for j in range(np.shape(self.X)[1]):
-                self.stdGrid[i, j] = np.nanstd(self.heights[i, j, :]/self.sumWhei[i, j, :])
+                self.stdGrid[i, j] = \
+                    np.nanstd(self.std_weighGrid[i, j, :] / self.std_sumWeight[i, j, :])
 
     # Add an array of observations
+    # !!!! Should re-write it!!!!
     def add(self, x=None, y=None, z=None, obs_weight=1):
         if z is None:
             z = []
@@ -153,25 +168,26 @@ class RegGrid3D:
             # There is no data yet - define the dimension of the grid so
             # that all data can be held
 
-            self.rangeX[0] = np.amin(x) - self.rpix
-            self.rangeX[1] = np.amax(x) + self.rpix
-            self.rangeY[0] = np.amin(y) - self.rpix
-            self.rangeY[1] = np.amax(y) + self.rpix
+            self.rangeX[0] = np.amin(x)
+            self.rangeX[1] = np.amax(x)
+            self.rangeY[0] = np.amin(y)
+            self.rangeY[1] = np.amax(y)
 
             # Create a new meshgrid covering the expanded range
-            self.X, self.Y = np.meshgrid(np.double(np.linspace(self.rangeX[0], self.rangeX[1],
-                                                               np.uint64(np.rint(
-                                                                   (np.diff(self.rangeX)[0] + self.res) / self.res)))),
-                                         np.double(np.linspace(self.rangeY[0], self.rangeY[1],
-                                                               np.uint64(np.rint(
-                                                                   (np.diff(self.rangeY)[0] + self.res) / self.res)))))
+            self.X, self.Y = \
+                np.meshgrid(
+                    np.arange(-self.rpix, (np.ceil(np.diff(self.rangeX)[0] / self.res)) + self.rpix + 1)
+                    * self.res + self.rangeX[0],
+                    np.arange(-self.rpix, (np.ceil(np.diff(self.rangeY)[0] / self.res)) + self.rpix + 1)
+                    * self.res + self.rangeY[0])
+
+            self.rangeX[0] = self.X[0, 0]
+            self.rangeX[1] = self.X[-1, -1]
+            self.rangeY[0] = self.Y[0, 0]
+            self.rangeY[1] = self.Y[-1, -1]
 
             print("""Meshgrid with X and Y dimensions was created: 
             X size is %d, Y size is %d.\n""" % (np.size(self.X), np.size(self.Y)))
-
-            # Make sure that the stored ranges are an exact representation of the meshgrid
-            if self.X[-1, -1] != self.rangeX[1] and self.Y[-1, -1] != self.rangeY[1]:
-                raise RuntimeError("Error! Meshgrid matrices and X,Y range vectors are not equal!")
 
             # Now create the weighed grid and the associated grid of
             # weights. Note that we should test for lack of data by 0s in
@@ -185,12 +201,9 @@ class RegGrid3D:
             c_max_x = 0
             c_min_y = 0
             c_max_y = 0
+
             # Determine by now how many pixels the grid should be increased
             # in each direction
-
-            # Instead of double I use int values for c_Min_x, c_min_y etc,
-            # because python doesn't understand double values for indices
-            # indices should be integer
             if np.amin(x) - self.rpix < self.rangeX[0]:
                 if not self.rinc:
                     c_min_x = np.int64(np.ceil((self.rangeX[0] - (np.amin(x) - self.rpix)) / self.res))
@@ -204,7 +217,7 @@ class RegGrid3D:
                     c_max_x = np.int64(np.ceil((np.amax(x) + self.rpix - self.rangeX[1]) / self.res))
                 else:
                     c_max_x = self.rinc
-                self.rangeX[1] = self.rangeX[2] + np.double(c_max_x) * self.res
+                self.rangeX[1] = self.rangeX[1] + np.double(c_max_x) * self.res
 
             if np.amin(y) - self.rpix < self.rangeY[0]:
                 if not self.rinc:
@@ -221,34 +234,51 @@ class RegGrid3D:
                 self.rangeY[1] = self.rangeY[1] + c_max_y * self.res
 
             if c_min_x or c_min_y or c_max_x or c_max_y:
-
                 # Create a new meshgrid covering the expanded range
-                self.X, self.Y = np.meshgrid(np.double(np.linspace(self.rangeX[0], self.rangeX[1],
-                                                                   np.uint64(np.rint((np.diff(self.rangeX)[
-                                                                                          0] + self.res) / self.res)))),
-                                             np.double(np.linspace(self.rangeY[0], self.rangeY[1],
-                                                                   np.uint64(np.rint((np.diff(self.rangeY)[
-                                                                                          0] + self.res) / self.res)))))
+                self.X, self.Y = \
+                    np.meshgrid(
+                        np.arange(-self.rpix, (np.ceil(np.diff(self.rangeX)[0] / self.res)) + self.rpix + 1)
+                        * self.res + self.rangeX[0],
+                        np.arange(-self.rpix, (np.ceil(np.diff(self.rangeY)[0] / self.res)) + self.rpix + 1)
+                        * self.res + self.rangeY[0])
+
                 print("""Meshgrid with X and Y dimensions was created: 
                         X size is %d, Y size is %d.""" % (np.size(self.X), np.size(self.Y)))
+
                 # Make sure that the stored ranges are
                 # an exact representation of the meshgrid
-                if self.X[-1, -1] != self.rangeX[1] and self.Y[-1, -1] != self.rangeY[1]:
-                    raise RuntimeError("Error! Meshgrid matrices and X,Y range vectors are not equal!")
+                self.rangeX[0] = self.X[0, 0]
+                self.rangeX[1] = self.X[-1, -1]
+                self.rangeY[0] = self.Y[0, 0]
+                self.rangeY[1] = self.Y[-1, -1]
+
+                # Get a copy of the existing grid
+                wg = np.copy(self.weighGrid)
+                sw = np.copy(self.sumWeight)
+                std = np.copy(self.stdGrid)
 
                 # Create the new weighed grid and associated sum weights
                 self.weighGrid = np.zeros(np.shape(self.X))
                 self.sumWeight = np.zeros(np.shape(self.X))
 
-                # Preserve the previously determined values
-                wg = self.weighGrid[0 + c_min_y:len(self.weighGrid[0, :]) - c_max_y + 1,
-                     0 + c_min_x:len(self.weighGrid[0, :]) - c_max_x + 1]
+                self.std_sumWeight = np.zeros((np.shape(self.X)[0], np.shape(self.X)[1], len(z)))
+                self.std_weighGrid = np.zeros((np.shape(self.X)[0], np.shape(self.X)[1], len(z)))
 
-                sw = self.sumWeight[0 + c_min_y:len(self.sumWeight[0, :]) - c_max_y + 1,
-                     0 + c_min_x:len(self.sumWeight[0, :]) - c_max_x + 1]
+                self.stdGrid = np.zeros(np.shape(self.X))
+
+                # bla bla
+                a = self.weighGrid[0 + c_min_y:len(self.weighGrid[0, :]) - c_max_y + 1,
+                               0 + c_min_x:len(self.weighGrid[0, :]) - c_max_x + 1]
+                self.weighGrid[0 + c_min_y:len(self.weighGrid[0, :]) - c_max_y + 1,
+                               0 + c_min_x:len(self.weighGrid[0, :]) - c_max_x + 1] = wg
+
+                self.sumWeight[0 + c_min_y:len(self.sumWeight[0, :]) - c_max_y + 1,
+                               0 + c_min_x:len(self.sumWeight[0, :]) - c_max_x + 1] = sw
+
+                self.stdGrid[0 + c_min_y:len(self.sumWeight[0, :]) - c_max_y + 1,
+                             0 + c_min_x:len(self.sumWeight[0, :]) - c_max_x + 1] = std
 
                 # Loop through the data - for now using a for loop
-                count = 0
                 for i in range(len(z)):
                     # Get the location of the data in the grid
 
@@ -260,15 +290,26 @@ class RegGrid3D:
                                   [y_grid - self.rpix, y_grid + (self.rpix + 1)]])
                     # Add the contribution to both the weighed grid as well as
                     # the grid of summed weights
-                    self.sumWeight[k[1, 0]:k[1, 1], k[0, 0]:k[0, 1]] = self.sumWeight[k[1, 0]:k[1, 1],
-                                                                       k[0, 0]:k[0, 1]] + \
-                                                                       obs_weight * self.kWeight
+                    self.sumWeight[k[1, 0]:k[1, 1], k[0, 0]:k[0, 1]] = \
+                        self.sumWeight[k[1, 0]:k[1, 1], k[0, 0]:k[0, 1]] + \
+                        obs_weight * self.kWeight
 
-                    self.weighGrid[k[1, 0]:k[1, 1], k[0, 0]:k[0, 1]] = self.weighGrid[k[1, 0]:k[1, 1],
-                                                                       k[0, 0]:k[0, 1]] + \
-                                                                       obs_weight * self.kWeight * z[i]
-                    count += 1
-                print("%d dynamic surface's cells were updated" % (count + 1))
+                    self.weighGrid[k[1, 0]:k[1, 1], k[0, 0]:k[0, 1]] = \
+                        self.weighGrid[k[1, 0]:k[1, 1], k[0, 0]:k[0, 1]] + \
+                        obs_weight * self.kWeight * z[i]
+
+                    self.std_sumWeight[k[1, 0]:k[1, 1], k[0, 0]:k[0, 1], i] = \
+                        self.std_sumWeight[k[1, 0]:k[1, 1], k[0, 0]:k[0, 1], i] + \
+                        self.kWeight
+
+                    self.std_weighGrid[k[1, 0]:k[1, 1], k[0, 0]:k[0, 1], i] = \
+                        self.std_weighGrid[k[1, 0]:k[1, 1], k[0, 0]:k[0, 1], i] + \
+                        self.kWeight * z[i]
+
+                for i in range(np.shape(self.X)[0]):
+                    for j in range(np.shape(self.X)[1]):
+                        self.stdGrid[i, j] = \
+                            np.nanstd(self.std_weighGrid[i, j, :] / self.std_sumWeight[i, j, :])
 
     # What does it mean? AofI - Area of influence
     def area_of_influence(self, x, y, bh, h):

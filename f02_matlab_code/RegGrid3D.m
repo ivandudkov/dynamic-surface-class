@@ -103,7 +103,7 @@ classdef RegGrid3D  < matlab.mixin.Copyable & dlnode
             
             obj.kWeight(obj.kWeight<obj.rPix^-2)=0;
             
-            % update the object's radius of influence
+            % update the object''s radius of influence
             
             obj.rInfl=rInfl;
             
