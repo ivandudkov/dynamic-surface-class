@@ -13,13 +13,13 @@ if 'xyz_array' in locals():
     pass
 else:
     xyz_paths = find_file_with_extension('.xyz', path=os.path.abspath('..'))
-    xyz_array = read_xyz_file_r2(xyz_paths[2], separator=',', header_length=1)
+    xyz_array = read_xyz_file_r2(xyz_paths[3], separator=',', header_length=1)
 
 b = RegGrid3D(1, 1)
 
-b.create(xyz_array[0, 0:10], xyz_array[1, 0:10], xyz_array[2, 0:10])
+b.create(xyz_array[0, :], xyz_array[1, :], xyz_array[2, :])
 
-b.add(xyz_array[0, 10:20], xyz_array[1, 10:20], xyz_array[2, 10:20])
+#b.add(xyz_array[0, 100:10000], xyz_array[1, 100:10000], xyz_array[2, 100:10000])
 # b.filter_sd(3)
 
 b.plot()

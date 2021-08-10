@@ -31,17 +31,16 @@ class RegGrid3D:
     """
 
     # Class constructor method
-    def __init__(self, res, rinfl, rinc=0):
+    def __init__(self, res, rinfl):
         print("Initialization of the RegGrid3D class\n")
 
         # Properties
         self.res = res  # Resolution
         self.rinfl = np.int64(rinfl)  # Radius of influence
-        if rinc == 0:  # ... Radius Increment???? I don't know what it is
-            print("Warning! rinc = 0")
-
-        self.rinc = rinc  # Set rinc
         self.rpix = round(rinfl / res)  # Radius of influence in pixel units
+
+        # Radius of influence in coordinate units
+        self.rpix2coord = np.sum(np.arange(0, self.rpix + 1) * self.res)
 
         # Allocation memory for the ranges
         self.rangeX = np.zeros(2)
@@ -79,19 +78,19 @@ class RegGrid3D:
         #         % expanded by the radius of influence in pixel units to
         #         % ensure that the all data can be fully captured in the arrays
 
-        self.rangeX[0] = np.amin(x)
-        self.rangeX[1] = np.amax(x)
-        self.rangeY[0] = np.amin(y)
-        self.rangeY[1] = np.amax(y)
+        self.rangeX[0] = np.amin(x) - self.rpix2coord
+        self.rangeX[1] = np.amax(x) + self.rpix2coord
+        self.rangeY[0] = np.amin(y) - self.rpix2coord
+        self.rangeY[1] = np.amax(y) + self.rpix2coord
 
         # Create a new meshgrid covering the expanded range
         print("Creating the meshgrid using range vectors\n")
 
         self.X, self.Y = \
             np.meshgrid(
-                np.arange(-self.rpix, (np.ceil(np.diff(self.rangeX)[0] / self.res)) + self.rpix + 1)
+                np.arange(0, (np.ceil(np.diff(self.rangeX)[0] / self.res)) + 1)
                 * self.res + self.rangeX[0],
-                np.arange(-self.rpix, (np.ceil(np.diff(self.rangeY)[0] / self.res)) + self.rpix + 1)
+                np.arange(0, (np.ceil(np.diff(self.rangeY)[0] / self.res)) + 1)
                 * self.res + self.rangeY[0])
 
         # Update ranges to make sure that they are correctly represent the meshgrid
@@ -117,9 +116,6 @@ class RegGrid3D:
             # Get the location of the data in the grid
             x_grid = np.argwhere(x[i] >= self.X[0, :])[-1][0]
             y_grid = np.argwhere(y[i] >= self.Y[:, 0])[-1][0]
-
-            test_x = np.argwhere(x[i] >= self.X[0, :])
-            test_y = np.argwhere(y[i] >= self.Y[:, 0])
 
             # Set the location of associated kernel in the grid
             k = np.array([[x_grid - self.rpix, x_grid + (self.rpix + 1)],
@@ -149,7 +145,6 @@ class RegGrid3D:
                     np.nanstd(self.std_weighGrid[i, j, :] / self.std_sumWeight[i, j, :])
 
     # Add an array of observations
-    # !!!! Should re-write it!!!!
     def add(self, x=None, y=None, z=None, obs_weight=1):
         if z is None:
             z = []
@@ -168,17 +163,17 @@ class RegGrid3D:
             # There is no data yet - define the dimension of the grid so
             # that all data can be held
 
-            self.rangeX[0] = np.amin(x)
-            self.rangeX[1] = np.amax(x)
-            self.rangeY[0] = np.amin(y)
-            self.rangeY[1] = np.amax(y)
+            self.rangeX[0] = np.amin(x) - self.rpix2coord
+            self.rangeX[1] = np.amax(x) + self.rpix2coord
+            self.rangeY[0] = np.amin(y) - self.rpix2coord
+            self.rangeY[1] = np.amax(y) + self.rpix2coord
 
             # Create a new meshgrid covering the expanded range
             self.X, self.Y = \
                 np.meshgrid(
-                    np.arange(-self.rpix, (np.ceil(np.diff(self.rangeX)[0] / self.res)) + self.rpix + 1)
+                    np.arange(0, (np.ceil(np.diff(self.rangeX)[0] / self.res)) + 1)
                     * self.res + self.rangeX[0],
-                    np.arange(-self.rpix, (np.ceil(np.diff(self.rangeY)[0] / self.res)) + self.rpix + 1)
+                    np.arange(0, (np.ceil(np.diff(self.rangeY)[0] / self.res)) + 1)
                     * self.res + self.rangeY[0])
 
             self.rangeX[0] = self.X[0, 0]
@@ -197,49 +192,47 @@ class RegGrid3D:
             self.weighGrid = np.zeros(np.shape(self.X))
             self.sumWeight = np.zeros(np.shape(self.X))
         else:
+            # We should increase our grid by these amount of pixels
+            # and by amount of self.rpix
             c_min_x = 0
             c_max_x = 0
             c_min_y = 0
             c_max_y = 0
 
-            # Determine by now how many pixels the grid should be increased
+            xmin = np.amin(x) - self.rpix2coord
+            xmax = np.amax(x) + self.rpix2coord
+            ymin = np.amin(y) - self.rpix2coord
+            ymax = np.amax(y) + self.rpix2coord
+
+            # Determine by now how many pixels
+            # the grid should be increased
             # in each direction
-            if np.amin(x) - self.rpix < self.rangeX[0]:
-                if not self.rinc:
-                    c_min_x = np.int64(np.ceil((self.rangeX[0] - (np.amin(x) - self.rpix)) / self.res))
+            if xmin < self.rangeX[0]:
+                c_min_x = np.int64(np.ceil((self.rangeX[0] - xmin) / self.res))
+            self.rangeX[0] = self.rangeX[0] - c_min_x * self.res
 
-                else:
-                    c_min_x = self.rinc
-                self.rangeX[0] = self.rangeX[0] - c_min_x * self.res
+            if xmax > self.rangeX[1]:
+                c_max_x = np.int64(np.ceil((xmax - self.rangeX[1]) / self.res))
+            self.rangeX[1] = self.rangeX[1] + c_max_x * self.res
 
-            if np.amax(x) + self.rpix > self.rangeX[1]:
-                if not self.rinc:
-                    c_max_x = np.int64(np.ceil((np.amax(x) + self.rpix - self.rangeX[1]) / self.res))
-                else:
-                    c_max_x = self.rinc
-                self.rangeX[1] = self.rangeX[1] + np.double(c_max_x) * self.res
+            if ymin < self.rangeY[0]:
+                c_min_y = np.int64(np.ceil((self.rangeY[0] - ymin) / self.res))
+            self.rangeY[0] = self.rangeY[0] - c_min_y * self.res
 
-            if np.amin(y) - self.rpix < self.rangeY[0]:
-                if not self.rinc:
-                    c_min_y = np.int64(np.ceil((self.rangeY[0] - (np.amin(y) - self.rpix)) / self.res))
-                else:
-                    c_min_y = self.rinc
-                self.rangeY[0] = self.rangeY[0] - c_min_y * self.res
-
-            if np.amax(y) + self.rpix > self.rangeY[1]:
-                if not self.rinc:
-                    c_max_y = np.int64(np.ceil((np.amax(y) + self.rpix - self.rangeY[1]) / self.res))
-                else:
-                    c_max_y = self.rinc
-                self.rangeY[1] = self.rangeY[1] + c_max_y * self.res
+            if ymax > self.rangeY[1]:
+                c_max_y = np.int64(np.ceil((ymax - self.rangeY[1]) / self.res))
+            self.rangeY[1] = self.rangeY[1] + c_max_y * self.res
 
             if c_min_x or c_min_y or c_max_x or c_max_y:
+                n = self.Y
+                m = self.X
+
                 # Create a new meshgrid covering the expanded range
                 self.X, self.Y = \
                     np.meshgrid(
-                        np.arange(-self.rpix, (np.ceil(np.diff(self.rangeX)[0] / self.res)) + self.rpix + 1)
+                        np.arange(0, (np.ceil(np.diff(self.rangeX)[0] / self.res)) + 1)
                         * self.res + self.rangeX[0],
-                        np.arange(-self.rpix, (np.ceil(np.diff(self.rangeY)[0] / self.res)) + self.rpix + 1)
+                        np.arange(0, (np.ceil(np.diff(self.rangeY)[0] / self.res)) + 1)
                         * self.res + self.rangeY[0])
 
                 print("""Meshgrid with X and Y dimensions was created: 
@@ -255,28 +248,44 @@ class RegGrid3D:
                 # Get a copy of the existing grid
                 wg = np.copy(self.weighGrid)
                 sw = np.copy(self.sumWeight)
-                std = np.copy(self.stdGrid)
+
+                std_wg = np.copy(self.std_weighGrid)
+                std_sw = np.copy(self.std_sumWeight)
+                # std = np.copy(self.stdGrid)
 
                 # Create the new weighed grid and associated sum weights
                 self.weighGrid = np.zeros(np.shape(self.X))
                 self.sumWeight = np.zeros(np.shape(self.X))
 
-                self.std_sumWeight = np.zeros((np.shape(self.X)[0], np.shape(self.X)[1], len(z)))
-                self.std_weighGrid = np.zeros((np.shape(self.X)[0], np.shape(self.X)[1], len(z)))
+                # Handling the standard deviation grid:
+
+                prev_len = np.shape(self.std_sumWeight)[2]
+                new_len = prev_len + len(z)
+
+                self.std_sumWeight = np.zeros((np.shape(self.X)[0], np.shape(self.X)[1], new_len))
+                self.std_weighGrid = np.zeros((np.shape(self.X)[0], np.shape(self.X)[1], new_len))
 
                 self.stdGrid = np.zeros(np.shape(self.X))
 
+
+
                 # bla bla
-                a = self.weighGrid[0 + c_min_y:len(self.weighGrid[0, :]) - c_max_y + 1,
-                               0 + c_min_x:len(self.weighGrid[0, :]) - c_max_x + 1]
-                self.weighGrid[0 + c_min_y:len(self.weighGrid[0, :]) - c_max_y + 1,
-                               0 + c_min_x:len(self.weighGrid[0, :]) - c_max_x + 1] = wg
+                a = self.weighGrid[c_min_y:len(self.weighGrid[:, 0]) - c_max_y,
+                    c_min_x:len(self.weighGrid[0, :]) - c_max_x]
+                self.weighGrid[c_min_y:len(self.weighGrid[:, 0]) - c_max_y,
+                               c_min_x:len(self.weighGrid[0, :]) - c_max_x] = wg
 
-                self.sumWeight[0 + c_min_y:len(self.sumWeight[0, :]) - c_max_y + 1,
-                               0 + c_min_x:len(self.sumWeight[0, :]) - c_max_x + 1] = sw
+                self.sumWeight[c_min_y:len(self.weighGrid[:, 0]) - c_max_y,
+                               c_min_x:len(self.weighGrid[0, :]) - c_max_x] = sw
 
-                self.stdGrid[0 + c_min_y:len(self.sumWeight[0, :]) - c_max_y + 1,
-                             0 + c_min_x:len(self.sumWeight[0, :]) - c_max_x + 1] = std
+                # self.stdGrid[c_min_y:len(self.weighGrid[:, 0]) - c_max_y,
+                #              c_min_x:len(self.weighGrid[0, :]) - c_max_x] = std
+
+                self.std_weighGrid[c_min_y:len(self.weighGrid[:, 0]) - c_max_y,
+                             c_min_x:len(self.weighGrid[0, :]) - c_max_x, 0:prev_len] = std_wg
+
+                self.std_sumWeight[c_min_y:len(self.weighGrid[:, 0]) - c_max_y,
+                             c_min_x:len(self.weighGrid[0, :]) - c_max_x, 0:prev_len] = std_sw
 
                 # Loop through the data - for now using a for loop
                 for i in range(len(z)):
@@ -298,12 +307,12 @@ class RegGrid3D:
                         self.weighGrid[k[1, 0]:k[1, 1], k[0, 0]:k[0, 1]] + \
                         obs_weight * self.kWeight * z[i]
 
-                    self.std_sumWeight[k[1, 0]:k[1, 1], k[0, 0]:k[0, 1], i] = \
-                        self.std_sumWeight[k[1, 0]:k[1, 1], k[0, 0]:k[0, 1], i] + \
+                    self.std_sumWeight[k[1, 0]:k[1, 1], k[0, 0]:k[0, 1], prev_len + i] = \
+                        self.std_sumWeight[k[1, 0]:k[1, 1], k[0, 0]:k[0, 1], prev_len + i] + \
                         self.kWeight
 
-                    self.std_weighGrid[k[1, 0]:k[1, 1], k[0, 0]:k[0, 1], i] = \
-                        self.std_weighGrid[k[1, 0]:k[1, 1], k[0, 0]:k[0, 1], i] + \
+                    self.std_weighGrid[k[1, 0]:k[1, 1], k[0, 0]:k[0, 1], prev_len + i] = \
+                        self.std_weighGrid[k[1, 0]:k[1, 1], k[0, 0]:k[0, 1], prev_len + i] + \
                         self.kWeight * z[i]
 
                 for i in range(np.shape(self.X)[0]):
@@ -487,46 +496,6 @@ class RegGrid3D:
             self.dtm[mask] = np.nan
             title1 = "Masked Digital Terrain Model"
 
-        # My try to make hillshade
-        #         ls = LightSource(270, 45)
-        #         rgb = ls.shade(self.dtm, cmap=cm.gist_earth, vert_exag=10, blend_mode='soft',
-        #                       vmin=np.nanmin(self.dtm), vmax=np.nanmax(self.dtm))
-        #         plot1 = axs[0].plot_surface(self.X, self.Y, self.dtm,
-        #                             rstride=1, cstride=1, facecolors=rgb,
-        #                                linewidth=0, antialiased=False, shade=False)
-        # # 3D plots
-        # fig, axs = plt.subplots(2, 1, subplot_kw=dict(projection='3d'))
-        # fig.set_figheight(5)
-        # fig.set_figwidth(10)
-        #
-        # # Digital Terrain Model 3D surface
-        # plot1 = axs[0].plot_surface(self.X, self.Y, self.dtm,
-        #                             cmap='gist_rainbow_r', vmin=np.nanmin(self.dtm), vmax=np.nanmax(self.dtm))
-        #
-        # axs[0].ticklabel_format(useOffset=False)
-        # axs[0].set_title(title1)
-        # axs[0].set_xlabel(x_label)
-        # axs[0].set_ylabel(y_label)
-        # axs[0].set_zlabel(z_label)
-        #
-        # # Standard deviation 3D surface
-        # plot2 = axs[1].plot_surface(self.X, self.Y, self.dtm_sd,
-        #                             cmap='gist_rainbow_r', vmin=np.nanmin(self.dtm_sd), vmax=np.nanmax(self.dtm_sd))
-        #
-        # axs[1].ticklabel_format(useOffset=False)
-        # axs[1].set_title(title2)
-        # axs[1].set_xlabel(x_label)
-        # axs[1].set_ylabel(y_label)
-        # axs[1].set_zlabel(z2_label)
-        #
-        # # Add colorbars for each plot
-        # fig.colorbar(plot1, ax=axs[0])
-        # fig.colorbar(plot2, ax=axs[1])
-        #
-        # # Tight figure's layout
-        # fig.tight_layout()
-        # plt.show()
-
         # 2d plots
         fig, axs = plt.subplots(2, 1)
         fig.set_figheight(5)
@@ -557,15 +526,3 @@ class RegGrid3D:
         # Tight figure's layout
         fig.tight_layout()
         plt.show()
-
-#         # DTM Grid
-#         self.dtm = self.weighGrid / self.sumWeight
-#         plt_dtm = np.ma.masked_where(self.dtm is not np.isnan(self.dtm), self.dtm)
-#         axs[0].plot_surface(self.X, self.Y, plt_dtm,
-#                             cmap='gist_rainbow_r', vmin=np.nanmin(self.dtm), vmax=np.nanmax(self.dtm))
-
-#         # Standard deviation grid
-#         plt_sd = np.ma.masked_where(self.dtm_sd is not np.isnan(self.dtm_sd), self.dtm_sd)
-#         axs[1].plot_surface(self.X, self.Y, plt_sd,
-#                             cmap='gist_rainbow_r', vmin=np.nanmin(self.dtm_sd), vmax=np.nanmax(self.dtm_sd))
-#         plt.show()
