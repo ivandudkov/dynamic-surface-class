@@ -267,19 +267,11 @@ class RegGrid3D:
 
                 self.stdGrid = np.zeros(np.shape(self.X))
 
-
-
-                # bla bla
-                a = self.weighGrid[c_min_y:len(self.weighGrid[:, 0]) - c_max_y,
-                    c_min_x:len(self.weighGrid[0, :]) - c_max_x]
                 self.weighGrid[c_min_y:len(self.weighGrid[:, 0]) - c_max_y,
                                c_min_x:len(self.weighGrid[0, :]) - c_max_x] = wg
 
                 self.sumWeight[c_min_y:len(self.weighGrid[:, 0]) - c_max_y,
                                c_min_x:len(self.weighGrid[0, :]) - c_max_x] = sw
-
-                # self.stdGrid[c_min_y:len(self.weighGrid[:, 0]) - c_max_y,
-                #              c_min_x:len(self.weighGrid[0, :]) - c_max_x] = std
 
                 self.std_weighGrid[c_min_y:len(self.weighGrid[:, 0]) - c_max_y,
                              c_min_x:len(self.weighGrid[0, :]) - c_max_x, 0:prev_len] = std_wg
@@ -297,6 +289,7 @@ class RegGrid3D:
                     # Set the location of associated kernel in the grid
                     k = np.array([[x_grid - self.rpix, x_grid + (self.rpix + 1)],
                                   [y_grid - self.rpix, y_grid + (self.rpix + 1)]])
+
                     # Add the contribution to both the weighed grid as well as
                     # the grid of summed weights
                     self.sumWeight[k[1, 0]:k[1, 1], k[0, 0]:k[0, 1]] = \
@@ -389,7 +382,7 @@ class RegGrid3D:
 
         #                 % etc
 
-    def filter_sd(self, size, crit_angle=1, varargin=None):
+    def filter_sd(self, size, crit_angle=1):
 
         if not np.array([size % 2, size < 1, np.floor(size) != size]).any():
             raise RuntimeError("Kernel size must be an uneven integer greater than 1")
@@ -442,10 +435,6 @@ class RegGrid3D:
         # the mean standard deviation
         self.mask = np.logical_or(self.mask, np.abs(dtm_m - dtm) > crit_angle * dtm_sd)
 
-        # If we chose to replace values then do it using the mask
-        if varargin != None:  # I don't understand what is varargin.
-            self.weighGrid[self.mask] = dtm_sd[self.mask]
-            self.sumWeight = 1
 
     def filter_diff(self, dtm, crit):
         return  # In progress...
@@ -487,8 +476,6 @@ class RegGrid3D:
 
         x_label = "Easting [m]"
         y_label = "Northing [m]"
-        z_label = "Elevation [m]"
-        z2_label = "Standard Deviation [m]"
         title1 = "Digital Terrain Model"
         title2 = "Standard Deviation Model"
 
