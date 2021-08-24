@@ -88,9 +88,9 @@ y_cone2 = b2*((h - u_cone)/h)*r*np.sin(theta)
 # Cone - intersection of both cones
 xx = x_cone - x_cone2
 yy = y_cone - y_cone2
-
-xx[-0.05<xx<0.05] = xx
-yy[-0.05<xx<0.05] = yy
+#
+# xx[-0.05<xx<0.05] = xx
+# yy[-0.05<xx<0.05] = yy
 # plot the plane
 plt3d = plt.figure().gca(projection='3d')
 plt3d.plot_surface(x_cone, y_cone, z_cone, color='blue')

@@ -339,10 +339,10 @@ class RegGrid3D:
         # y is Northing, 1D array
         # bh is depression angle in radians
         # h is heading in radians
-
-        aoi = None
-        if not np.array([x, y]).any():
-            return print("X or Y array is empty! Method is not initialized")
+        #
+        # aoi = None
+        # if not np.array([x, y]).any():
+        #     return print("X or Y array is empty! Method is not initialized")
 
         nS = len(x)
 
@@ -350,36 +350,36 @@ class RegGrid3D:
             raise RuntimeError("Error! Vectors for Y and X range don't have same size!")
 
         # Determine whether the current location is covered by the grid
-
-        if not self.rangeX[0]:
-            return print("Range X doesn't exists. Method is not initialized")
-        else:
-            if np.array([np.amin(x) <= self.rangeX[0],
-                         np.amax(x) >= self.rangeX[1],
-                         np.amin(y) <= self.rangeY[0],
-                         np.amax(y) >= self.rangeY[1]]).any():
-                return print("X and Y ranges are not correct. They are less than min/max x and y values.\n \
-                Method is not initialized")
+        #
+        # if not self.rangeX[0]:
+        #     return print("Range X doesn't exists. Method is not initialized")
+        # else:
+        #     if np.array([np.amin(x) <= self.rangeX[0],
+        #                  np.amax(x) >= self.rangeX[1],
+        #                  np.amin(y) <= self.rangeY[0],
+        #                  np.amax(y) >= self.rangeY[1]]).any():
+        #         return print("X and Y ranges are not correct. They are less than min/max x and y values.\n \
+        #         Method is not initialized")
 
         # Loop through the data - for now using a for loop
         for i in range(nS):
             # Get the location of the data in the grid
-            x_grid = np.argwhere(x[i] >= self.X[1, :])[-1][0]
-            y_grid = np.argwhere(y[i] >= self.Y[:, 1])[-1][0]
-
-            # x_grid is now your column, y_grid is your row
-            print("x_grid: %d" % x_grid)
-            print("y_grid: %d" % y_grid)
-
-            # To demonstrate the indexing look at the value from this location
-            d_two = self.weighGrid[y_grid, x_grid] / self.sumWeight[y_grid, x_grid]
-
-            # Now look at one dimensional indexing of the same grid
-            ii = np.unravel_index((y_grid + (x_grid - 1) * np.shape(self.X)[0]), np.shape(self.X), 'F')
-            d_one = self.weighGrid[ii] / self.sumWeight[ii]
-
-            print("Depth using 2d indexing: %.2f" % d_two)
-            print("Depth using 1d indexing: %.2f" % d_one)
+            # x_grid = np.argwhere(x[i] >= self.X[1, :])[-1][0]
+            # y_grid = np.argwhere(y[i] >= self.Y[:, 1])[-1][0]
+            #
+            # # x_grid is now your column, y_grid is your row
+            # print("x_grid: %d" % x_grid)
+            # print("y_grid: %d" % y_grid)
+            #
+            # # To demonstrate the indexing look at the value from this location
+            # d_two = self.weighGrid[y_grid, x_grid] / self.sumWeight[y_grid, x_grid]
+            #
+            # # Now look at one dimensional indexing of the same grid
+            # ii = np.unravel_index((y_grid + (x_grid - 1) * np.shape(self.X)[0]), np.shape(self.X), 'F')
+            # d_one = self.weighGrid[ii] / self.sumWeight[ii]
+            #
+            # print("Depth using 2d indexing: %.2f" % d_two)
+            # print("Depth using 1d indexing: %.2f" % d_one)
 
             # Original description from Matlab script
             #                 % So ii is the index of the vertex on the lower left of the
@@ -392,11 +392,15 @@ class RegGrid3D:
 
             #                 % Calculate the direction vector and normalize it, also
             #                 % offset the heading by 90 degrees
-            h = h + np.pi / 2
-            u = np.sqrt(np.array([np.cos(h) ** 2 * (1 - np.sin(bh[i]) ** 2),
-                                  np.sin(h) ** 2 * (1 - np.sin(bh[i]) ** 2),
+            # New heading:
+            h[i] = h[i] + np.pi / 2
+            # Direction vector u:
+            u = np.sqrt(np.array([np.cos(h[i]) ** 2 * (1 - np.sin(bh[i]) ** 2),
+                                  np.sin(h[i]) ** 2 * (1 - np.sin(bh[i]) ** 2),
                                   np.sin(bh[i])]))
-
+            ax, fig = plt.subplot()
+            ax.plot(u[1], u[2])
+            plt.show()
         #                 % Note you have to careful about the signs
         #                 % I did not check this for you
         #                 % tan(asin(u(1,3)))*abs(cross distance) should get you

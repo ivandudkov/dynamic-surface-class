@@ -19,11 +19,12 @@ import numpy as np
 
 b = RegGrid3D(1, 1)
 
-x
-y
-z
+x = [1, 2, 3]
+y = [1, 2, 3]
+bh = [90*np.pi/180, 86*np.pi/180, 94*np.pi/180]
+h = [145*np.pi/180, 147*np.pi/180, 149*np.pi/180]
 
-b.area_of_influence()
+b.area_of_influence(x, y, bh, h)
 
 #b.create(xyz_array[0, :], xyz_array[1, :], xyz_array[2, :])
 
