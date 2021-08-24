@@ -26,7 +26,7 @@ class RegGrid3D:
 
     # Conversion to Python started on July 26, 2021
     # Conversion to Python finished on August 02, 2021 (first completed draft)
-    #
+    # Functions "create" and "add" were debugged and tested on 09.08.2021
     # Ivan Dudkov
     """
 
@@ -274,10 +274,10 @@ class RegGrid3D:
                                c_min_x:len(self.weighGrid[0, :]) - c_max_x] = sw
 
                 self.std_weighGrid[c_min_y:len(self.weighGrid[:, 0]) - c_max_y,
-                             c_min_x:len(self.weighGrid[0, :]) - c_max_x, 0:prev_len] = std_wg
+                                   c_min_x:len(self.weighGrid[0, :]) - c_max_x, 0:prev_len] = std_wg
 
                 self.std_sumWeight[c_min_y:len(self.weighGrid[:, 0]) - c_max_y,
-                             c_min_x:len(self.weighGrid[0, :]) - c_max_x, 0:prev_len] = std_sw
+                                   c_min_x:len(self.weighGrid[0, :]) - c_max_x, 0:prev_len] = std_sw
 
                 # Loop through the data - for now using a for loop
                 for i in range(len(z)):
@@ -313,11 +313,33 @@ class RegGrid3D:
                         self.stdGrid[i, j] = \
                             np.nanstd(self.std_weighGrid[i, j, :] / self.std_sumWeight[i, j, :])
 
-    # What does it mean? AofI - Area of influence
+    # AofI - Area of influence. That method is about beam footpring calculation for every sounding.
+    # Depending on the sounding, its position, elevation angle and seafloor surface algorithm should
+    # build intersection of the beam cone with a seafloor.
+    # The algorithm will be iterative. It will calculate a n number of beam footprint and seafloor
+    # assumptions in steps:
+    # 1. Assuming that every sounding has vertical incidence and flat bottom
+    # 2. Assuming tilted beams and flat bottom
+    # 3. Assuming tilted beams and DTM (here I should introduce iterative DTM calculation)
+    # 4. Assuming tilted beams, DTM and beam pattern (Beam pattern estimation? Also iterative?)
+    # 5. Assuming tilted beams, DTM, beam pattern and water column SV (beam refraction)
+    # Steps 3-5 I'm not sure how to implement D:
+    #
+    # Important to note: beam footprint should play a huge role in sounding weighting
+    # because of beam footprint intersections and etc
+    #
+    # Also, for DTM calculation I should implement convergence criterion, the property of
+    # DTM's quality, that will stop iterations at some point.
+    # First thoughts about convergence criterion:
+    # 1. How much changes are occurring in particular cell. How the depth in that cell is changing,
+    # like if it less than some limit, then we done our iterations
+    # 2. Those particular cells are grid nodes that affected by footprint (included in beam footprint)
     def area_of_influence(self, x, y, bh, h):
-        # x is Easting
-        # y is Northing
-        # bh is depression angle
+        # x is Easting, 1D array
+        # y is Northing, 1D array
+        # bh is depression angle in radians
+        # h is heading in radians
+
         aoi = None
         if not np.array([x, y]).any():
             return print("X or Y array is empty! Method is not initialized")
@@ -392,6 +414,7 @@ class RegGrid3D:
         #             % the algorithm to do that - this is very SLOW, but works
         n_nan = size ** 2 / 2 + 1  # num nan
         size = np.floor(size / 2)
+
         # Create a sizeXsize normalized filter
         m, n = np.shape(self.X)
 
@@ -435,9 +458,12 @@ class RegGrid3D:
         # the mean standard deviation
         self.mask = np.logical_or(self.mask, np.abs(dtm_m - dtm) > crit_angle * dtm_sd)
 
-
     def filter_diff(self, dtm, crit):
         return  # In progress...
+
+    # Important note: After flat seafloor and non-vert angle incidence scenario implementation in area of
+    # influence method, I should create a method for adding and subtracting terrain models with different
+    # resolution. The most important stuff is a propagation of the uncertainties associated with DTMs
 
     def grid_difference(self, dtm1, dtm2):
         return  # In progress...
@@ -462,8 +488,7 @@ class RegGrid3D:
     # %
     # %         end
     def plot(self, mask=None, exag=6, varargin=None):
-        if varargin != None:  # I don't understand what is varargin.
-            h = varargin
+
         # Original description from Matlab script
         #         % This is certainly not the fastest way to plot the data (that
         #         % would be using the surface functions) but it does allow for
