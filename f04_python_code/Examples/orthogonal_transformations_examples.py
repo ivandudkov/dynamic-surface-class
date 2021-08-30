@@ -116,8 +116,9 @@ vectors_rotated = np.array([[1, 0, 0],  # unit X vector direction
                            [0, 1, 0],  # unit Y vector direction
                            [0, 0, 1],
                            [0.5, 0.9, 3]])  # unit Z vector direction
+
 for vector, i in zip(vectors_itself[:, 0:None], range(vectors_itself.shape[0])):
-    vectors_rotated[i, :] = roll_pitch_yaw_rotation(vector, [0, np.pi/4, np.pi/4])
+    vectors_rotated[i, :] = roll_pitch_yaw_rotation(vector, [np.pi/4, 0, 0])
 
 # Convert Matrix's columns into row vectors (2D array to 1D arrays)
 i0 = vectors_start[:, 0]  # x

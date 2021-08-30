@@ -2,12 +2,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-
-# For hillshade:
-# from matplotlib import cm
-# from matplotlib.colors import LightSource
-
-
 class RegGrid3D:
     """
     Original Matlab Class description:
